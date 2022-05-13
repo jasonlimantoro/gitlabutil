@@ -1,7 +1,6 @@
 use std::env;
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
-use std::ops::Deref;
 
 use reqwest;
 use reqwest::StatusCode;
@@ -35,7 +34,7 @@ const BASE_PATH: &str = "/api/v4";
 const GITLAB_PRIVATE_TOKEN: &'static str = env!("GITLAB_PRIVATE_TOKEN");
 
 fn route_get_projects_by_path(path: String) -> String {
-    let path = format!("/projects/{}", encode(&path.deref()));
+    let path = format!("/projects/{}", encode(path.as_str()));
 
     return format!(
         "{domain}{base_path}{path}",
