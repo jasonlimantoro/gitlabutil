@@ -21,7 +21,8 @@ fn main() {
                         .arg(arg!(-s --"source-branch" <SOURCE_BRANCH>))
                         .arg(arg!(-t --"target-branches" <TARGET_BRANCHES>))
                         .arg(arg!(--"title" <TITLE>))
-                        .arg(arg!(--"description" <DESCRIPTION>)),
+                        .arg(arg!(--"description" <DESCRIPTION>).required(false))
+                        .arg(arg!(-j --jira <JIRA_TICKET_IDS>)),
                 ),
         )
         .get_matches();

@@ -1,8 +1,10 @@
 pub mod merge_request {
     pub mod module {
-        use crate::merge_request::gitlab_manager::Manager;
-        use clap::ArgMatches;
         use std::error::Error;
+
+        use clap::ArgMatches;
+
+        use crate::merge_request::gitlab_manager::Manager;
 
         #[derive(Debug)]
         pub struct Args {
@@ -11,6 +13,7 @@ pub mod merge_request {
             target_branches: Vec<String>,
             title: String,
             description: String,
+            jira_ticket_ids: Vec<String>,
         }
 
         pub struct Module {
@@ -30,7 +33,13 @@ pub mod merge_request {
                         .collect(),
 
                     title: args.value_of("title").unwrap().to_string(),
-                    description: args.value_of("description").unwrap().to_string(),
+                    description: args.value_of("description").unwrap_or_default().to_string(),
+                    jira_ticket_ids: args
+                        .value_of("jira")
+                        .unwrap()
+                        .split(",")
+                        .map(str::to_string)
+                        .collect(),
                 }
             }
         }
@@ -50,6 +59,7 @@ pub mod merge_request {
                             target_branch.to_string(),
                             args.title.clone(),
                             args.description.clone(),
+                            args.jira_ticket_ids.clone(),
                         )
                         .unwrap();
 
@@ -61,8 +71,9 @@ pub mod merge_request {
     }
 
     pub mod gitlab_manager {
-        use crate::merge_request::gitlab_accessor::Accessor;
         use std::error::Error;
+
+        use crate::merge_request::gitlab_accessor::Accessor;
 
         #[derive(Debug)]
         pub struct MergeRequest {
@@ -86,10 +97,18 @@ pub mod merge_request {
                 target_branch: String,
                 title: String,
                 description: String,
+                jira_ticket_ids: Vec<String>,
             ) -> Result<MergeRequest, Box<dyn Error>> {
                 let result = self
                     .accessor
-                    .create(repository, source_branch, target_branch, title, description)
+                    .create(
+                        repository,
+                        source_branch,
+                        target_branch,
+                        title,
+                        description,
+                        jira_ticket_ids,
+                    )
                     .unwrap();
 
                 Ok(MergeRequest {
@@ -101,11 +120,12 @@ pub mod merge_request {
     }
 
     pub mod gitlab_accessor {
-        use reqwest;
-        use serde::{Deserialize, Serialize};
         use std::env;
         use std::error::Error;
         use std::ops::Deref;
+
+        use reqwest;
+        use serde::{Deserialize, Serialize};
         use urlencoding::encode;
 
         #[derive(Deserialize, Debug)]
@@ -222,6 +242,7 @@ pub mod merge_request {
                 target_branch: String,
                 title: String,
                 description: String,
+                jira_ticket_ids: Vec<String>,
             ) -> Result<MergeRequest, Box<dyn Error>> {
                 let project = self
                     .http_client
@@ -234,11 +255,7 @@ pub mod merge_request {
                     id: project.id,
                     source_branch,
                     target_branch: target_branch.clone(),
-                    title: format!(
-                        "[{target_branch}]{title}",
-                        target_branch = target_branch.clone(),
-                        title = title
-                    ),
+                    title: create_title(title.as_str(), target_branch.as_str(), jira_ticket_ids),
                     description,
                 };
 
@@ -251,6 +268,44 @@ pub mod merge_request {
                     .json::<MergeRequest>()?;
 
                 Ok(merge_request)
+            }
+        }
+
+        fn create_title(
+            plain_title: &str,
+            target_branch: &str,
+            jira_ticket_ids: Vec<String>,
+        ) -> String {
+            let jira_sections: Vec<String> = jira_ticket_ids
+                .into_iter()
+                .map(|j| -> String { format!("[{}]", j) })
+                .collect();
+
+            return format!(
+                "{jira}{target_branch} {title}",
+                jira = jira_sections.concat(),
+                target_branch = format!("[{}]", target_branch),
+                title = plain_title
+            );
+        }
+
+        #[cfg(test)]
+        mod tests {
+            use super::*;
+
+            #[test]
+            fn it_should_correctly_create_title() {
+                assert_eq!(
+                    create_title(
+                        "test MR",
+                        "uat",
+                        vec!["ES-123", "ES-234"]
+                            .into_iter()
+                            .map(str::to_string)
+                            .collect(),
+                    ),
+                    "[ES-123][ES-234][uat] test MR"
+                );
             }
         }
     }
