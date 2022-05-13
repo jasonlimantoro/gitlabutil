@@ -1,6 +1,6 @@
 use clap::{arg, Command};
-use gitlabutil::merge_request;
-use merge_request::{gitlab_accessor, gitlab_manager};
+use gitlabutil::modules;
+use gitlabutil::registry;
 
 fn main() {
     let matches = Command::new("gitlab-util")
@@ -27,18 +27,15 @@ fn main() {
         )
         .get_matches();
 
+    let di_registry = registry::Registry::new();
+
     match matches.subcommand() {
         Some(("merge-request", merge_request_matches)) => {
             match merge_request_matches.subcommand() {
                 Some(("create", merge_request_create_matches)) => {
-                    let http_client = gitlab_accessor::HttpClient::new();
-                    let gitlab_accessor = gitlab_accessor::Accessor::new(http_client);
-                    let gitlab_manager = gitlab_manager::Manager::new(gitlab_accessor);
-                    let module = merge_request::module::Module::new(gitlab_manager);
+                    let args = modules::merge_request::Args::parse(merge_request_create_matches);
 
-                    let args = merge_request::module::Args::parse(merge_request_create_matches);
-
-                    match module.create(&args) {
+                    match di_registry.merge_request_module.create(&args) {
                         Ok(_) => {
                             println!("Done.")
                         }
