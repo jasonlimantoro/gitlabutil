@@ -51,7 +51,7 @@ impl Module {
             let merge_request = self
                 .manager
                 .clone()
-                .create(
+                .create_merge_request(
                     args.repository.clone(),
                     args.source_branch.clone(),
                     target_branch.to_string(),

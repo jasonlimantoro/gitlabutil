@@ -135,7 +135,7 @@ impl Accessor {
     pub fn new(http_client: HttpClient) -> Accessor {
         Accessor { http_client }
     }
-    pub fn create(
+    pub fn create_merge_request(
         self,
         repository: String,
         source_branch: String,

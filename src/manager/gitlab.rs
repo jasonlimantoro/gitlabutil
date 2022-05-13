@@ -17,7 +17,7 @@ impl Manager {
     pub fn new(accessor: gitlab::Accessor) -> Manager {
         Manager { accessor }
     }
-    pub fn create(
+    pub fn create_merge_request(
         self,
         repository: String,
         source_branch: String,
@@ -28,7 +28,7 @@ impl Manager {
     ) -> Result<MergeRequest, Box<dyn Error>> {
         let result = self
             .accessor
-            .create(
+            .create_merge_request(
                 repository,
                 source_branch,
                 target_branch,
