@@ -1,9 +1,32 @@
-use reqwest;
-use serde::{Deserialize, Serialize};
 use std::env;
 use std::error::Error;
+use std::fmt::{Debug, Display, Formatter};
 use std::ops::Deref;
+
+use reqwest;
+use reqwest::StatusCode;
+use serde::{Deserialize, Serialize};
 use urlencoding::encode;
+
+#[derive(Debug)]
+pub struct ApiError {
+    url: String,
+    method: String,
+    status_code: u16,
+    message: String,
+}
+
+impl Display for ApiError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "ApiError{{ url: {}, method: {} code: {}, message: {} }}",
+            self.url, self.method, self.status_code, self.message
+        )
+    }
+}
+
+impl Error for ApiError {}
 
 #[derive(Deserialize, Debug)]
 pub struct Project {
@@ -121,12 +144,42 @@ impl Accessor {
         description: String,
         jira_ticket_ids: Vec<String>,
     ) -> Result<MergeRequest, Box<dyn Error>> {
-        let project = self
-            .http_client
-            .c
-            .get(route_get_projects_by_path(repository))
-            .send()?
-            .json::<Project>()?;
+        let get_projects_endpoint = route_get_projects_by_path(repository);
+        let get_project_res = match self.http_client.c.get(get_projects_endpoint.clone()).send() {
+            Ok(res) => res,
+            Err(err) => {
+                return Err(Box::new(ApiError {
+                    url: get_projects_endpoint.clone(),
+                    message: err.to_string(),
+                    status_code: 0,
+                    method: "get".to_string(),
+                }));
+            }
+        };
+
+        let status_code = get_project_res.status();
+        let project = match status_code {
+            StatusCode::OK => match get_project_res.json::<Project>() {
+                Ok(res) => res,
+                Err(err) => {
+                    return Err(Box::new(ApiError {
+                        url: get_projects_endpoint.clone(),
+                        message: format!("unmarshalling: {}", err.to_string()),
+                        status_code: err.status().unwrap().as_u16(),
+                        method: "get".to_string(),
+                    }));
+                }
+            },
+
+            _ => {
+                return Err(Box::new(ApiError {
+                    url: get_projects_endpoint.clone(),
+                    message: get_project_res.text().unwrap(),
+                    status_code: status_code.as_u16(),
+                    method: "get".to_string(),
+                }));
+            }
+        };
 
         let request = CreateMergeRequestRequest {
             id: project.id,
@@ -136,13 +189,50 @@ impl Accessor {
             description,
         };
 
-        let merge_request = self
+        let create_merge_request_endpoint = route_create_merge_request(project.id);
+        let response = self
             .http_client
             .c
-            .post(route_create_merge_request(project.id))
+            .post(create_merge_request_endpoint.clone())
             .json(&request)
-            .send()?
-            .json::<MergeRequest>()?;
+            .send();
+
+        let result = match response {
+            Ok(res) => res,
+            Err(err) => {
+                return Err(Box::new(ApiError {
+                    url: create_merge_request_endpoint.clone(),
+                    message: err.to_string(),
+                    status_code: 0,
+                    method: "post".to_string(),
+                }));
+            }
+        };
+
+        let status_code = result.status();
+
+        let merge_request = match status_code {
+            StatusCode::OK => match result.json::<MergeRequest>() {
+                Ok(res) => res,
+                Err(err) => {
+                    return Err(Box::new(ApiError {
+                        url: create_merge_request_endpoint,
+                        method: "post".to_string(),
+                        status_code: status_code.as_u16(),
+                        message: err.to_string(),
+                    }))
+                }
+            },
+
+            _ => {
+                return Err(Box::new(ApiError {
+                    url: create_merge_request_endpoint,
+                    method: "post".to_string(),
+                    status_code: result.status().as_u16(),
+                    message: result.text().unwrap(),
+                }));
+            }
+        };
 
         Ok(merge_request)
     }

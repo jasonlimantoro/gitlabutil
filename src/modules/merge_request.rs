@@ -48,7 +48,7 @@ impl Module {
     }
     pub fn create(self, args: &Args) -> Result<(), Box<dyn Error>> {
         for target_branch in &args.target_branches {
-            let result = self
+            let merge_request = self
                 .manager
                 .clone()
                 .create(
@@ -61,7 +61,7 @@ impl Module {
                 )
                 .unwrap();
 
-            println!("result {:?}", result);
+            println!("merge_request = {:?}", merge_request);
         }
         Ok(())
     }
