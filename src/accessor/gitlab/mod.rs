@@ -5,8 +5,9 @@ use std::ops::Deref;
 
 use reqwest;
 use reqwest::StatusCode;
-use serde::{Deserialize, Serialize};
 use urlencoding::encode;
+
+mod models;
 
 #[derive(Debug)]
 pub struct ApiError {
@@ -27,51 +28,6 @@ impl Display for ApiError {
 }
 
 impl Error for ApiError {}
-
-#[derive(Deserialize, Debug)]
-pub struct Project {
-    pub id: i64,
-    pub description: String,
-    pub name: String,
-    pub name_with_namespace: String,
-    pub path: String,
-    pub path_with_namespace: String,
-    pub created_at: String,
-    pub default_branch: String,
-    pub ssh_url_to_repo: String,
-    pub http_url_to_repo: String,
-    pub web_url: String,
-    pub readme_url: String,
-    pub forks_count: i64,
-    pub star_count: i64,
-    pub last_activity_at: String,
-    pub container_registry_image_prefix: String,
-    pub packages_enabled: bool,
-    pub empty_repo: bool,
-    pub archived: bool,
-    pub visibility: String,
-    pub resolve_outdated_diff_discussions: bool,
-    pub issues_enabled: bool,
-    pub merge_requests_enabled: bool,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct MergeRequest {
-    pub id: i64,
-    pub title: String,
-    pub target_branch: String,
-    pub source_branch: String,
-    pub web_url: String,
-}
-
-#[derive(Deserialize, Serialize, Debug)]
-pub struct CreateMergeRequestRequest {
-    pub id: i64,
-    pub source_branch: String,
-    pub target_branch: String,
-    pub title: String,
-    pub description: String,
-}
 
 const DOMAIN: &str = "https://gitlab.com";
 const BASE_PATH: &str = "/api/v4";
@@ -143,7 +99,7 @@ impl Accessor {
         title: String,
         description: String,
         jira_ticket_ids: Vec<String>,
-    ) -> Result<MergeRequest, Box<dyn Error>> {
+    ) -> Result<models::MergeRequest, Box<dyn Error>> {
         let get_projects_endpoint = route_get_projects_by_path(repository);
         let get_project_res = match self.http_client.c.get(get_projects_endpoint.clone()).send() {
             Ok(res) => res,
@@ -159,7 +115,7 @@ impl Accessor {
 
         let status_code = get_project_res.status();
         let project = match status_code {
-            StatusCode::OK => match get_project_res.json::<Project>() {
+            StatusCode::OK => match get_project_res.json::<models::Project>() {
                 Ok(res) => res,
                 Err(err) => {
                     return Err(Box::new(ApiError {
@@ -181,7 +137,7 @@ impl Accessor {
             }
         };
 
-        let request = CreateMergeRequestRequest {
+        let request = models::CreateMergeRequestRequest {
             id: project.id,
             source_branch,
             target_branch: target_branch.clone(),
@@ -212,7 +168,7 @@ impl Accessor {
         let status_code = result.status();
 
         let merge_request = match status_code {
-            StatusCode::OK => match result.json::<MergeRequest>() {
+            StatusCode::OK => match result.json::<models::MergeRequest>() {
                 Ok(res) => res,
                 Err(err) => {
                     return Err(Box::new(ApiError {
